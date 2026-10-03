@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Context passed to every tool handler. Kept as an object (rather than a bare
@@ -11,7 +12,7 @@ export interface ToolContext {
    * Retarget the server at a different project directory for the rest of the
    * session. Provided by the server entry point; only `set_project` calls it.
    */
-  setProjectPath?: (path: string) => void;
+  setProjectPath?: (path: string) => void | Promise<void>;
 }
 
 /**
@@ -30,6 +31,8 @@ export type InputShape = Record<string, z.ZodType>;
  */
 export interface ToolDefinition {
   name: string;
+  /** Protocol hints, including runtime side effects outside disk commits. */
+  annotations?: ToolAnnotations;
   description: string;
   inputSchema: InputShape;
   handler: (ctx: ToolContext, args: Record<string, any>) => Promise<unknown>;

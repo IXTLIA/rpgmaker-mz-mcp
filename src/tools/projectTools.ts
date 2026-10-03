@@ -76,7 +76,7 @@ export const projectToolDefinitions: ToolDefinition[] = [
           `Not an RPG Maker MZ project: ${path} (expected game.rmmzproject and data/System.json)`,
         );
       }
-      ctx.setProjectPath(path);
+      await ctx.setProjectPath(path);
       return describeProject(path);
     },
   },

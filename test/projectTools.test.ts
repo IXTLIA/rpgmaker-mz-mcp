@@ -25,7 +25,7 @@ describe('normalizeProjectPath', () => {
   });
 
   it('resolves other paths to absolute', () => {
-    expect(normalizeProjectPath('/abs/path')).toBe('/abs/path');
+    expect(normalizeProjectPath('/abs/path')).toBe(resolve('/abs/path'));
     expect(normalizeProjectPath('rel/path')).toBe(resolve('rel/path'));
   });
 });
@@ -74,6 +74,35 @@ describe('project tools (integration)', () => {
     } finally {
       await rm(notAProject, { recursive: true, force: true });
     }
+  });
+
+  it('awaits asynchronous runtime cleanup before reporting a new target', async () => {
+    let finished = false;
+    await setProject.handler(
+      {
+        projectPath: '',
+        setProjectPath: async () => {
+          await new Promise<void>((done) => setImmediate(done));
+          finished = true;
+        },
+      },
+      { path: dir },
+    );
+    expect(finished).toBe(true);
+  });
+
+  it('does not report successful retargeting if runtime cleanup fails', async () => {
+    await expect(
+      setProject.handler(
+        {
+          projectPath: '',
+          setProjectPath: async () => {
+            throw new Error('Runtime cleanup failed');
+          },
+        },
+        { path: dir },
+      ),
+    ).rejects.toThrow('Runtime cleanup failed');
   });
 
   it('set_project throws when the context cannot be retargeted', async () => {

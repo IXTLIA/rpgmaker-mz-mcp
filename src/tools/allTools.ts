@@ -24,6 +24,10 @@ import { validationToolDefinitions } from './validationTools.js';
 import { pluginScanToolDefinitions } from './pluginScanTools.js';
 import { batchToolDefinitions } from './batchTools.js';
 import { idToolDefinitions } from './idTools.js';
+import { projectAnalysisToolDefinitions } from './projectAnalysisTools.js';
+import { mapAnalysisToolDefinitions } from './mapAnalysisTools.js';
+import { mapGenerationToolDefinitions } from './mapGenerationTools.js';
+import { runtimeToolDefinitions } from './runtimeTools.js';
 
 /**
  * Every tool the server exposes, gathered from the per-domain tool modules.
@@ -31,6 +35,10 @@ import { idToolDefinitions } from './idTools.js';
  * server entry point and the tests without booting the stdio server.
  */
 export const allToolDefinitions: ToolDefinition[] = [
+  ...projectAnalysisToolDefinitions,
+  ...mapAnalysisToolDefinitions,
+  ...mapGenerationToolDefinitions,
+  ...runtimeToolDefinitions,
   ...projectToolDefinitions,
   ...actorToolDefinitions,
   ...itemToolDefinitions,

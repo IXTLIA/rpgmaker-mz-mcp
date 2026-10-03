@@ -2,6 +2,8 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { readFile } from 'fs/promises';
 import { writeJsonFile, deleteFile, fileExists } from './fileHandler.js';
 
+export { commitText, commitTextBatch } from './textCommit.js';
+
 /**
  * A single leaf-level difference between the old and new file contents.
  * `from` absent means the value was added; `to` absent means it was removed.

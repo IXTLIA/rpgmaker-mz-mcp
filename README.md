@@ -5,13 +5,13 @@
 # RPG Maker MZ MCP Server
 
 [![CI](https://github.com/Redseb/rpgmaker-mz-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Redseb/rpgmaker-mz-mcp/actions/workflows/ci.yml)
-[![Tools](https://img.shields.io/badge/tools-119-e94560.svg)](#available-tools)
+[![Tools](https://img.shields.io/badge/tools-129-e94560.svg)](#available-tools)
 [![MCP](https://img.shields.io/badge/MCP-stdio-e94560.svg)](https://modelcontextprotocol.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg)](tsconfig.json)
 [![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-3fa796.svg)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-3fa796.svg)](#license)
 
-**119 tools** that let an AI assistant read and write an RPG Maker MZ project directly — actors, classes, skills, items, equipment, states, enemies, troops, common events, maps, tiles, tilesets, events, and system settings — instead of hand-editing everything in the editor.
+**129 tools** that let an AI assistant read and write an RPG Maker MZ project directly — actors, classes, skills, items, equipment, states, enemies, troops, common events, maps, tiles, tilesets, events, and system settings — instead of hand-editing everything in the editor.
 
 _"Add a town under the world map, paint it with grass, and drop in a shopkeeper who sells potions"_ → done, in-project, no editor clicks.
 
@@ -68,6 +68,7 @@ New here? Read [SETUP.md](SETUP.md) for the full walkthrough and [EXAMPLES.md](E
 
 ## Capabilities
 
+- **Project intelligence and live testing** — project diagnostics, readable event outlines, map layout analysis, balance outliers, project-wide text search, duplicate-event reports, a local MZ playtest bridge, and seeded/project-derived map generation. See [the capability guide](docs/capabilities.md) for tool arguments, previews, runtime setup, and limits.
 - **Database CRUD** — actors, classes (with learnings & param curves), skills (full-control + simplified damage/heal/buff/state helpers), items, weapons, armors, states, enemies, and troops. Only a `name` is required to create; everything else falls back to the editor's true "New X" template.
 - **Maps & the map tree** — create/delete maps, batch-reparent/reorder/rename with a cycle guard, and edit map properties. New maps register in `MapInfos.json` exactly as the editor expects.
 - **Tile painting (with automatic autotiling)** — `paint_tiles`/`fill_area` set tiles on any of the six map layers and recompute autotile shapes (and their neighbours') from same-kind adjacency, so a filled region borders itself correctly. `place_object` stamps multi-tile B/C objects (houses, trees) and reports their passability footprint.
@@ -144,7 +145,7 @@ The easiest path is the `.mcpb` bundle from [Releases](https://github.com/Redseb
 
 ## Available tools
 
-All 119 tools, grouped by area. Tools that write to the project accept an optional `dryRun` argument (see [Dry-run preview](#dry-run-preview)); those that can refuse a structurally invalid write also accept `force` (see [Event validation](#event-validation-throw-by-default)).
+All 129 tools, grouped by area. Tools that write to the project accept an optional `dryRun` argument (see [Dry-run preview](#dry-run-preview)); those that can refuse a structurally invalid write also accept `force` (see [Event validation](#event-validation-throw-by-default)).
 
 <details>
 <summary><strong>Expand the full tool reference</strong></summary>
