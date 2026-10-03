@@ -28,6 +28,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:protocol": "node scripts/verify-capabilities-protocol.mjs",
+    "test:runtime": "node scripts/verify-mz-runtime.mjs",
+    "test:headless:protocol": "node scripts/verify-headless-protocol.mjs",
     "sync:tools": "node scripts/sync-tool-count.mjs",
     "sync:tools:check": "node scripts/sync-tool-count.mjs --check",
     "sync:version": "node scripts/sync-version.mjs",

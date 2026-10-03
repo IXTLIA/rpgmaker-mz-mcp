@@ -157,27 +157,46 @@ export function idExplanation(data: ProjectData, namespace: IdNamespace, id: num
     source.commands.forEach((command, index) =>
       commands.set(`${source.path} / command ${index}`, command),
     );
-  const references = scanIdUsage(data, namespace)
-    .filter((ref) => ref.id === id)
-    .map((ref) => {
-      const command = commands.get(ref.path);
-      const p = command?.parameters ?? [];
-      let write = false;
-      let read = true;
-      if (namespace === 'switch' && command?.code === 121) {
-        write = true;
-        read = false;
-      }
-      if (namespace === 'variable' && command?.code === 122) {
-        write = id >= Number(p[0]) && id <= Number(p[1]);
-        read = (write && p[2] !== 0) || (p[3] === 1 && p[4] === id);
-      }
-      if (namespace === 'variable' && command && [103, 104, 285].includes(command.code)) {
-        write = p[0] === id;
-        read = command.code === 285 && p[2] === 1 && (p[3] === id || p[4] === id);
-      }
-      return { ...ref, role: write ? (read ? 'both' : 'write') : 'read' };
-    });
+  const matchingReferences = scanIdUsage(data, namespace).filter((ref) => ref.id === id);
+  // The general scanner caps range expansion at 1,000 IDs. A single-ID query
+  // can test range membership directly, without allocating every intervening ID.
+  const rangeCode = namespace === 'switch' ? 121 : namespace === 'variable' ? 122 : undefined;
+  for (const [path, command] of commands) {
+    if (rangeCode === undefined || command?.code !== rangeCode) continue;
+    const p = command.parameters;
+    if (
+      Array.isArray(p) &&
+      Number.isSafeInteger(p[0]) &&
+      Number.isSafeInteger(p[1]) &&
+      Number(p[0]) > 0 &&
+      Number(p[0]) <= id &&
+      id <= Number(p[1])
+    )
+      matchingReferences.push({
+        id,
+        path,
+        via: rangeCode === 121 ? 'Control Switches' : 'Control Variables',
+      });
+  }
+  const references = matchingReferences.map((ref) => {
+    const command = commands.get(ref.path);
+    const p = command?.parameters ?? [];
+    let write = false;
+    let read = true;
+    if (namespace === 'switch' && command?.code === 121) {
+      write = true;
+      read = false;
+    }
+    if (namespace === 'variable' && command?.code === 122) {
+      write = id >= Number(p[0]) && id <= Number(p[1]);
+      read = (write && p[2] !== 0) || (p[3] === 1 && p[4] === id);
+    }
+    if (namespace === 'variable' && command && [103, 104, 285].includes(command.code)) {
+      write = p[0] === id;
+      read = command.code === 285 && p[2] === 1 && (p[3] === id || p[4] === id);
+    }
+    return { ...ref, role: write ? (read ? 'both' : 'write') : 'read' };
+  });
   const unique = [...new Map(references.map((ref) => [`${ref.path}:${ref.role}`, ref])).values()];
   const readers = unique.filter((ref) => ref.role !== 'write');
   const writers = unique.filter((ref) => ref.role !== 'read');
@@ -202,7 +221,7 @@ export function idExplanation(data: ProjectData, namespace: IdNamespace, id: num
     readers,
     writers,
     diagnosis,
-    coverage: STATIC_COVERAGE,
+    coverage: `${STATIC_COVERAGE} Recognized switch/variable write ranges are checked against the queried ID directly, beyond the general scanner's 1,000-ID expansion cap. Other reference forms follow the curated ID scanner and may be omitted when unsupported.`,
   };
 }
 

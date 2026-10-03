@@ -40,6 +40,10 @@ Outlines are best-effort summaries; `validate_event` remains the structural audi
 
 ## 2. Live MZ playtest bridge
 
+Upstream's `render_map` and `run_playtest` boot isolated headless browser sessions.
+The bridge complements them by observing and controlling a persistent NW.js
+playtest. The server retains upstream progress notifications and inline images.
+
 Use a disposable test project first. The bridge is a local NW.js test-mode plugin;
 it is inactive in ordinary deployed play. It accepts a fixed command vocabulary,
 not arbitrary JavaScript. The server binds only to loopback and authenticates one
@@ -179,3 +183,24 @@ The stdio harness uses generated temporary fixtures and exercises discovery,
 all analysis views, previews, generation commits, concurrent allocation, plugin
 installation, and bridge target/connection cleanup. Engine behavior and rendering
 require the separate local MZ playtest verification with a licensed installation.
+
+On a fresh, disposable project with the engine and necessary startup assets:
+
+```sh
+npm run test:runtime -- --project "/path/to/disposable/project" --runtime "/path/to/nw" --disposable-fixture yes
+```
+
+This script requires an empty Map001, temporarily inserts one diagnostic event,
+and installs the bridge in that disposable project. It restores the map, package,
+and temporary harness plugin after the run. A fixture-only focus/ticker shim lets
+the real engine advance in a hidden window; the production bridge does not
+override focus or rendering. Only the process tree launched by this script is
+terminated. PNG evidence and the installed bridge remain in the fixture. Ordinary
+interactive focus behavior and third-party plugin compatibility require separate
+project-specific testing.
+
+To verify upstream headless rendering and playtests over stdio, set
+`RPGMAKER_MCP_TEST_PROJECT` to a disposable licensed MZ project and, if needed,
+`RPGMAKER_MCP_CHROMIUM` to an installed Chromium browser executable, then run
+`npm run test:headless:protocol`. This optional check verifies inline PNG content,
+progress notifications (including heartbeats), and unchanged source project files.
