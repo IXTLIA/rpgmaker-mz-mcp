@@ -3,9 +3,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
+import type { ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
 
 import { basename } from 'path';
 import { readFileSync } from 'fs';
+import { readFile } from 'fs/promises';
 
 import { validateProjectPath } from './utils/fileHandler.js';
 import { ToolContext, ToolDefinition, buildRegistry, schemaFor, shapeResult } from './registry.js';
@@ -84,6 +87,29 @@ async function runTool(
   };
 }
 
+function progressReporter(
+  extra: RequestHandlerExtra<ServerRequest, ServerNotification> | undefined,
+): ToolContext['reportProgress'] {
+  const progressToken = extra?._meta?.progressToken;
+  if (progressToken === undefined) return undefined;
+  let last = -Infinity;
+  return (progress, total, message) => {
+    if (!(progress > last)) return;
+    last = progress;
+    extra!
+      .sendNotification({
+        method: 'notifications/progress',
+        params: {
+          progressToken,
+          progress,
+          ...(total !== undefined ? { total } : {}),
+          ...(message ? { message } : {}),
+        },
+      })
+      .catch(() => undefined);
+  };
+}
+
 function buildServer(initialProjectPath: string) {
   const server = new McpServer({ name: 'rpgmaker-mz-server', version: serverVersion() });
 
@@ -133,7 +159,10 @@ function buildServer(initialProjectPath: string) {
     server.registerTool(
       def.name,
       { description: def.description, inputSchema: schemaFor(def), annotations: def.annotations },
-      async (args: Record<string, unknown>): Promise<CallToolResult> => {
+      async (
+        args: Record<string, unknown>,
+        extra?: RequestHandlerExtra<ServerRequest, ServerNotification>,
+      ): Promise<CallToolResult> => {
         const execution = toolQueue.then(async (): Promise<CallToolResult> => {
           try {
             if (closing)
@@ -155,8 +184,24 @@ function buildServer(initialProjectPath: string) {
               setActiveTextMetrics(await loadProjectTextMetrics(projectPath));
             }
 
-            const result = await runTool(def, { projectPath, setProjectPath }, args);
-            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+            const reportProgress = progressReporter(extra);
+            const result = await runTool(
+              def,
+              { projectPath, setProjectPath, reportProgress },
+              args,
+            );
+            const content: CallToolResult['content'] = [
+              { type: 'text', text: JSON.stringify(result, null, 2) },
+            ];
+            for (const file of def.images?.(result, args) ?? []) {
+              try {
+                const data = (await readFile(file)).toString('base64');
+                content.push({ type: 'image', data, mimeType: 'image/png' });
+              } catch {
+                // The file path remains in the JSON result if inline reading fails.
+              }
+            }
+            return { content };
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };

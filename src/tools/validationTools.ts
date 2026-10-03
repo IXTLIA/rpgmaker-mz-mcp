@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { ToolDefinition } from '../registry.js';
-import { getMap, getMapInfos, getMapEvent } from './mapTools.js';
+import {
+  getMap,
+  getMapInfos,
+  getMapEvent,
+  loadCellWalkable,
+  cellHasObject,
+  eventPassabilityFindings,
+} from './mapTools.js';
 import { validateEvent, validateEvents, ValidationWarning } from '../validation/eventCommands.js';
 import { readJsonFile, readJsonArraySoft, getDataPath } from '../utils/fileHandler.js';
 import { checkReferences, ProjectData, ReferenceWarning } from '../validation/references.js';
@@ -35,8 +42,16 @@ export async function validateEventTool(
   if (!event) {
     throw new Error(`Event ${eventId} not found on map ${mapId}`);
   }
-  const report = validateEvent(event);
-  return { mapId, eventId, ...report };
+  const map = await getMap(projectPath, mapId);
+  const warnings = [
+    ...validateEvent(event).warnings,
+    ...eventPassabilityFindings(
+      event,
+      await loadCellWalkable(projectPath, map),
+      cellHasObject(map),
+    ),
+  ];
+  return { mapId, eventId, ok: warnings.length === 0, warnings };
 }
 
 /**
@@ -66,6 +81,14 @@ export async function validateProjectTool(projectPath: string): Promise<{
     const report = validateEvents(map.events);
     for (const warning of report.warnings) {
       warnings.push({ mapId, ...warning });
+    }
+    const walkable = await loadCellWalkable(projectPath, map);
+    const hasObject = cellHasObject(map);
+    for (const event of map.events ?? []) {
+      if (!event) continue;
+      for (const warning of eventPassabilityFindings(event, walkable, hasObject)) {
+        warnings.push({ mapId, ...warning });
+      }
     }
   }
 
@@ -97,7 +120,7 @@ export async function loadProjectData(projectPath: string): Promise<ProjectData>
     if (!info) continue;
     try {
       const map = await getMap(projectPath, info.id);
-      maps.push({ id: info.id, events: map.events });
+      maps.push({ id: info.id, events: map.events, encounterList: map.encounterList });
     } catch {
       // A map listed in MapInfos may not have a MapNNN.json file yet; skip it.
     }
@@ -158,6 +181,7 @@ const AUDITED_ASSET_TYPES: AssetType[] = [
   'faces',
   'sv_actors',
   'enemies',
+  'sv_enemies',
   'tilesets',
   'titles1',
   'titles2',
@@ -245,7 +269,7 @@ export const validationToolDefinitions: ToolDefinition[] = [
   {
     name: 'validate_event',
     description:
-      "Validate a single event's command lists against the known RPG Maker MZ command table. Read-only: reports parameter/structure warnings without changing anything.",
+      "Validate a single event's command lists against the known RPG Maker MZ command table, plus its placement against the tile it sits on: an action-button page with priority below on an impassable tile (can never trigger) and an invisible wall (a graphic-less, priority-same, non-through page on a walkable tile — the player bumps into nothing; an action-button page over a drawn B–E object is exempt, as the solid-landmark idiom). Read-only: reports warnings without changing anything.",
     inputSchema: {
       mapId: z.number().int().positive().describe('The ID of the map'),
       eventId: z.number().int().positive().describe('The ID of the event to validate'),
@@ -255,14 +279,14 @@ export const validationToolDefinitions: ToolDefinition[] = [
   {
     name: 'validate_project',
     description:
-      'Validate the event command lists of every map in the project. Read-only: returns aggregated, map-tagged warnings for auditing before or after a batch of edits.',
+      "Validate the event command lists of every map in the project, plus each event's placement (action-button-below on an impassable tile; graphic-less priority-same invisible walls on walkable tiles, except action-button pages over a drawn B–E object). Read-only: returns aggregated, map-tagged warnings for auditing before or after a batch of edits.",
     inputSchema: {},
     handler: (ctx) => validateProjectTool(ctx.projectPath),
   },
   {
     name: 'validate_references',
     description:
-      'Audit cross-file reference integrity across the whole project (read-only, warn-by-default): Transfer Player targets and starting position point at existing maps; starting party, actor classes, class/enemy skills, troop members, enemy drops, and skill/item effects (states, learned skills, common events, animations) all resolve; and the map tree has no dangling or cyclic parentId. Complements validate_project (which checks command shape). Returns { ok, warnings[] }.',
+      'Audit cross-file reference integrity across the whole project (read-only, warn-by-default): Transfer Player targets and starting position point at existing maps; starting party, actor classes, class/enemy skills, troop members, enemy drops, and skill/item effects (states, learned skills, common events, animations) all resolve; event commands that name a record (Change Items/Weapons/Armors, Change Party Member, Battle Processing, Shop Processing, Change State/Skill, Common Event) and map random encounters point at existing rows; and the map tree has no dangling or cyclic parentId. Complements validate_project (which checks command shape). Returns { ok, warnings[] }.',
     inputSchema: {},
     handler: (ctx) => validateReferencesTool(ctx.projectPath),
   },

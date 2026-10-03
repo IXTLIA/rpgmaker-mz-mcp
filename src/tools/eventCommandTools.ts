@@ -49,6 +49,9 @@ import {
   recoverAll,
   changeExp,
   changeLevel,
+  enemyAppear,
+  changeEnemyState,
+  abortBattle,
   BattleTroop,
   ShopGood,
   ActorTarget,
@@ -388,6 +391,14 @@ async function audioNameWarnings(
   });
 }
 
+/** Zod shape for Show Text's `wrap` option — shared by build_show_text and create_npc. */
+export const showTextWrapShape = z
+  .union([z.boolean(), z.enum(['soft', 'hard'])])
+  .optional()
+  .describe(
+    'Auto word-wrap to the message-window width (the same width the line-length warning uses) and split into 4-line boxes. true/"soft" reflows all lines as one paragraph; "hard" keeps each entry (and \\n) as a forced line break. Default off (one line per entry, verbatim).',
+  );
+
 /** Zod shape for an actor target (fixed actor id / 0 = whole party, or a variable). */
 const actorTargetShape = z
   .object({
@@ -412,7 +423,7 @@ export const eventCommandToolDefinitions: ToolDefinition[] = [
   {
     name: 'build_show_text',
     description:
-      'Build a Show Text event-command sequence (101 setup + one 401 line per text line) for insertion via insert_event_commands. Supports face image (from list_assets("faces")), window background/position, and the MZ name-box speaker. MZ does NOT word-wrap: keep each line under ~55 chars (~38 with a face) or it is cut off at the window edge (warned, never blocked). Read-only: returns { commands, warnings? }, writes nothing.',
+      'Build a Show Text event-command sequence (101 setup + one 401 line per text line) for insertion via insert_event_commands. Supports face image (from list_assets("faces")), window background/position, and the MZ name-box speaker. MZ does NOT word-wrap: keep each line under ~55 chars (~38 with a face) or it is cut off at the window edge (warned, never blocked) — or pass `wrap: true` to word-wrap automatically to that same width (escape codes like \\C[n] do not count) and split into as many 4-line message boxes as needed. Read-only: returns { commands, warnings? }, writes nothing.',
     inputSchema: {
       lines: z.array(z.string()).describe('Message lines (one entry per visual line)'),
       faceName: z.string().optional().describe('Face image basename ("" = none, default)'),
@@ -427,6 +438,7 @@ export const eventCommandToolDefinitions: ToolDefinition[] = [
         .describe('Window position (default bottom)'),
       speakerName: z.string().optional().describe('MZ name-box speaker name (default "")'),
       indent: z.number().int().optional().describe('Indentation level (default 0)'),
+      wrap: showTextWrapShape,
     },
     handler: async (_ctx, args) => {
       const options: ShowTextOptions = {
@@ -436,6 +448,7 @@ export const eventCommandToolDefinitions: ToolDefinition[] = [
         position: args.position,
         speakerName: args.speakerName,
         indent: args.indent,
+        wrap: args.wrap,
       };
       const commands = showText(args.lines as string[], options);
       const warnings = textLineWidthWarnings(commands, 'show_text');
@@ -1022,6 +1035,55 @@ export const eventCommandToolDefinitions: ToolDefinition[] = [
           return {
             command: changeHp(target, operation, operand, args.allowKnockout ?? false, indent),
           };
+      }
+    },
+  },
+  {
+    name: 'build_battle_command',
+    description:
+      'Build an in-battle event command for a troop battle-event page (see build_troop_page / add_troop_page / insert_event_commands target "troop_page"): enemy_appear (335 — reveal a troop member added with hidden: true, i.e. a summon/reinforcement), enemy_state (333 — add/remove a state on one troop member or the whole troop, e.g. a telegraph "Gathering power" state), or abort_battle (340 — end the battle with no victory/defeat; the calling Battle Processing takes its Escape branch). `enemyIndex` is the 0-based troop slot (members[] order), NOT an enemy id; enemy_state also accepts -1 = entire troop. Read-only: returns { command }.',
+    inputSchema: {
+      kind: z
+        .enum(['enemy_appear', 'enemy_state', 'abort_battle'])
+        .describe('Which battle command to build'),
+      enemyIndex: z
+        .number()
+        .int()
+        .min(-1)
+        .optional()
+        .describe(
+          'enemy_appear/enemy_state: 0-based troop slot (members[] order); enemy_state also allows -1 = entire troop',
+        ),
+      stateOperation: z
+        .enum(['add', 'remove'])
+        .optional()
+        .describe('enemy_state: add or remove the state (default add)'),
+      stateId: z.number().int().positive().optional().describe('enemy_state: the state id'),
+      indent: z.number().int().optional().describe('Indentation level (default 0)'),
+    },
+    handler: async (_ctx, args) => {
+      const indent = args.indent ?? 0;
+      switch (args.kind) {
+        case 'enemy_appear':
+          if (typeof args.enemyIndex !== 'number')
+            throw new Error('enemy_appear requires `enemyIndex`');
+          return { command: enemyAppear(args.enemyIndex, indent) };
+        case 'enemy_state':
+          if (typeof args.enemyIndex !== 'number')
+            throw new Error('enemy_state requires `enemyIndex` (-1 = entire troop)');
+          if (typeof args.stateId !== 'number') throw new Error('enemy_state requires `stateId`');
+          return {
+            command: changeEnemyState(
+              args.enemyIndex,
+              (args.stateOperation as 'add' | 'remove' | undefined) ?? 'add',
+              args.stateId,
+              indent,
+            ),
+          };
+        case 'abort_battle':
+          return { command: abortBattle(indent) };
+        default:
+          throw new Error(`Unknown battle command kind: ${args.kind}`);
       }
     },
   },

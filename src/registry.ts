@@ -13,6 +13,8 @@ export interface ToolContext {
    * session. Provided by the server entry point; only `set_project` calls it.
    */
   setProjectPath?: (path: string) => void | Promise<void>;
+  /** Optional client-requested progress notifications for long running tools. */
+  reportProgress?: (progress: number, total?: number, message?: string) => void;
 }
 
 /**
@@ -74,6 +76,8 @@ export interface ToolDefinition {
    * `force` follows, since an advertised argument that does nothing is a lie.
    */
   summarize?: (result: unknown) => unknown;
+  /** PNG files to attach beside JSON output, as supported by upstream render tools. */
+  images?: (result: unknown, args: Record<string, unknown>) => string[];
 }
 
 /**

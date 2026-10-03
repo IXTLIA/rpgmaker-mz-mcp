@@ -63,7 +63,7 @@ describe('schemaFor', () => {
 
 describe('tool registry contract', () => {
   it('exposes the expected number of tools', () => {
-    expect(allToolDefinitions.length).toBe(131);
+    expect(allToolDefinitions.length).toBe(140);
   });
 
   it('only project targeting and bridge status/cleanup opt out of the project-path gate', () => {

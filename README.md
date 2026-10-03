@@ -5,13 +5,13 @@
 # RPG Maker MZ MCP Server
 
 [![CI](https://github.com/Redseb/rpgmaker-mz-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Redseb/rpgmaker-mz-mcp/actions/workflows/ci.yml)
-[![Tools](https://img.shields.io/badge/tools-129-e94560.svg)](#available-tools)
+[![Tools](https://img.shields.io/badge/tools-140-e94560.svg)](#available-tools)
 [![MCP](https://img.shields.io/badge/MCP-stdio-e94560.svg)](https://modelcontextprotocol.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg)](tsconfig.json)
 [![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-3fa796.svg)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-3fa796.svg)](#license)
 
-**129 tools** that let an AI assistant read and write an RPG Maker MZ project directly — actors, classes, skills, items, equipment, states, enemies, troops, common events, maps, tiles, tilesets, events, and system settings — instead of hand-editing everything in the editor.
+**140 tools** that let an AI assistant read and write an RPG Maker MZ project directly — actors, classes, skills, items, equipment, states, enemies, troops, common events, maps, tiles, tilesets, events, and system settings — instead of hand-editing everything in the editor.
 
 _"Add a town under the world map, paint it with grass, and drop in a shopkeeper who sells potions"_ → done, in-project, no editor clicks.
 
@@ -68,15 +68,16 @@ New here? Read [SETUP.md](SETUP.md) for the full walkthrough and [EXAMPLES.md](E
 
 ## Capabilities
 
-- **Project intelligence and live testing** — project diagnostics, readable event outlines, map layout analysis, balance outliers, project-wide text search, duplicate-event reports, a local MZ playtest bridge, and seeded/project-derived map generation. See [the capability guide](docs/capabilities.md) for tool arguments, previews, runtime setup, and limits.
+- **Project intelligence and live NW.js testing** — project diagnostics, readable event outlines, map layout analysis, balance outliers, project-wide text search, duplicate-event reports, a persistent local playtest bridge, and seeded/project-derived map generation. See [the capability guide](docs/capabilities.md) for arguments, previews, setup, and limits. These complement the headless `render_map` and `run_playtest` tools.
 - **Database CRUD** — actors, classes (with learnings & param curves), skills (full-control + simplified damage/heal/buff/state helpers), items, weapons, armors, states, enemies, and troops. Only a `name` is required to create; everything else falls back to the editor's true "New X" template.
 - **Maps & the map tree** — create/delete maps, batch-reparent/reorder/rename with a cycle guard, and edit map properties. New maps register in `MapInfos.json` exactly as the editor expects.
-- **Tile painting (with automatic autotiling)** — `paint_tiles`/`fill_area` set tiles on any of the six map layers and recompute autotile shapes (and their neighbours') from same-kind adjacency, so a filled region borders itself correctly. `place_object` stamps multi-tile B/C objects (houses, trees) and reports their passability footprint.
+- **Tile painting (with automatic autotiling)** — `paint_tiles`/`fill_area` set tiles on any of the six map layers and recompute autotile shapes (and their neighbours') from same-kind adjacency, so a filled region borders itself correctly. `paint_blueprint` paints a whole area from ASCII rows + a legend in one call (multi-layer cells, catalog names, A4 wall faces derived automatically) and returns a passability overview. `place_object` stamps multi-tile B/C objects (houses, trees) and reports their passability footprint.
 - **Semantic tile catalog** — `find_tile "grass"` → a paintable tile id. Built-in catalogs for every default tileset (Overworld, Outside, Inside, Dungeon, SF), sourced from RPG Maker's own English name sidecars. A bundled vision-bootstrap skill catalogs **custom** tilesets.
 - **Passability & terrain** — read a tile's flags or a map cell's layered passability (`get_tile_flags`/`check_passability`), and **edit** passability/terrain-tag/behaviour flags (`set_tile_flags`).
 - **Event-command builders** — high-level, read-only builders that emit the exact `EventCommand` sequences the editor writes (including tricky recursive branch blocks and continuation rows), landed on a page via `insert_event_commands`. Covers dialogue & flow, game-state changes, presentation/transitions, and scene processing.
 - **Event & NPC ergonomics** — `create_npc` places a complete talking NPC in one call; `set_event_page` merges a page's graphic + behavior in place.
 - **Asset awareness** — `list_assets` enumerates valid character/face/tileset/audio names so events never reference a missing file.
+- **See and play the build** — `render_map` screenshots a map exactly as the engine draws it (whole map or a game-screen view) and `run_playtest` drives a scripted headless session (load a state, trigger events, read dialogue, pick choices, walk, auto-battle, screenshot), both reporting console errors and missing assets. Validators prove structure; these show what the player sees.
 - **Correctness layer** — Zod-validated inputs, throw-by-default event validation (a structurally invalid write is refused, not saved-and-warned-about), a cross-file reference linter (`validate_references`), and a dry-run/diff preview on every write.
 
 ## How it fits together
@@ -145,7 +146,7 @@ The easiest path is the `.mcpb` bundle from [Releases](https://github.com/Redseb
 
 ## Available tools
 
-All 129 tools, grouped by area. Tools that write to the project accept an optional `dryRun` argument (see [Dry-run preview](#dry-run-preview)); those that can refuse a structurally invalid write also accept `force` (see [Event validation](#event-validation-throw-by-default)).
+All 140 tools, grouped by area. Tools that write to the project accept an optional `dryRun` argument (see [Dry-run preview](#dry-run-preview)); those that can refuse a structurally invalid write also accept `force` (see [Event validation](#event-validation-throw-by-default)).
 
 <details>
 <summary><strong>Expand the full tool reference</strong></summary>
@@ -167,7 +168,7 @@ All 129 tools, grouped by area. Tools that write to the project accept an option
 
 ### Skills
 
-- `create_skill` (full control), `update_skill`, `search_skills`
+- `create_skill` (full control — every Skills.json field incl. `occasion`, `hitType`, `speed`, `repeats`, `successRate`, `tpGain`, required weapon types, `message2`, `note`; `hitType` defaults to magical for Magic skills, physical for other damage, certain for heals/ally scopes), `update_skill`, `search_skills`
 - `create_damage_skill`, `create_healing_skill`, `create_buff_skill`, `create_state_skill` — natural-language-friendly helpers for common skill types
 
 ### Items & equipment
@@ -184,6 +185,8 @@ All 129 tools, grouped by area. Tools that write to the project accept an option
 
 - `create_enemy`, `update_enemy`, `search_enemies`
 - `create_troop`, `update_troop`, `search_troops` — `create_troop` validates that every member references an existing enemy
+- `build_troop_page` — build a battle-event page `{ conditions, list, span }` from a compact trigger (`when`: `turn [a, b]`, `enemyHpBelow [slot, pct]`, `actorHpBelow [actorId, pct]`, `switch`, `turnEnd` — ANDed) and a `span` (`battle` / `turn` / `moment`), no hand-built 12-field conditions object. Read-only
+- `add_troop_page` — append (or insert at `position`) one page to a troop without re-sending the others; warns on an HP condition pointing past the troop's members
 
 ### Common events
 
@@ -207,7 +210,7 @@ All 129 tools, grouped by area. Tools that write to the project accept an option
 
 ### Event & NPC ergonomics
 
-- `create_npc` — one-shot "talking NPC": graphic + trigger + a talk list from `text` or explicit `commands`
+- `create_npc` — one-shot "talking NPC": graphic + trigger + a talk list from `text` (optionally auto word-wrapped with `wrap`) or explicit `commands`
 - `create_chest` — one-shot treasure chest: the two-page self-switch idiom (give item/weapon/armor/gold, then never again)
 - `create_transfer` — one-shot map transfer, in either working idiom: face a solid landmark (`action_button`) or step on a doormat (`player_touch`)
 - `set_event_page` — merge a page's graphic + behavior (sprite, trigger, priority, movement, flags) in place
@@ -220,6 +223,7 @@ Read-only builders that return editor-faithful `EventCommand` sequences; land th
 - **Game state:** `build_control_switch` (121/123), `build_control_variable` (122), `build_change_gold` (125), `build_change_items` (126–128), `build_change_party_member` (129)
 - **Presentation & transitions:** `build_transfer_player` (201), `build_play_audio` (BGM/BGS/ME/SE), `build_screen_effect` (fade/tint/flash/shake), `build_picture` (show/erase), `build_character_effect` (animation/balloon)
 - **Scenes:** `build_battle_processing` (301), `build_shop_processing` (302/605), `build_name_input` (303), `build_change_actor` (HP/MP/state/recover/EXP/level, 311–316)
+- **Battle (troop pages):** `build_battle_command` — enemy appear (335, reveal a hidden member), change enemy state (333, one slot or the whole troop), abort battle (340)
 - **Insertion:** `insert_event_commands` — splice a built sequence into a map event page (the default `target`), a common event body, or a troop battle-event page, then validate
 
 ### Move routes
@@ -238,6 +242,7 @@ Read-only builders that return editor-faithful `EventCommand` sequences; land th
 - `describe_tile` — decode a raw tile id (sheet, autotile kind/shape, geometry)
 - `get_tile_catalog`, `find_tile` — resolve human names ↔ paintable tile ids (`find_tile` can widen the search to a custom sheet's catalog descriptions with `searchDescriptions`)
 - `paint_tiles`, `fill_area` — paint with automatic autotiling
+- `paint_blueprint` — paint a whole area from an ASCII blueprint + legend in one write: `[layer, tile]` pairs per glyph, catalog names instead of ids, `{ wall: { top } }` entries whose vertical runs get their bottom cell turned into the wall-side (face) kind (top + 8 kinds), stale upper layers cleared; returns per-layer counts and a `#`/`.` passability map
 - `place_object` — stamp a multi-tile B/C object and report its passability footprint
 
 ### Tileset flags (passability / terrain)
@@ -249,6 +254,34 @@ Read-only builders that return editor-faithful `EventCommand` sequences; land th
 ### Assets
 
 - `list_assets` — enumerate available asset basenames (characters, faces, tilesets, pictures, audio, …)
+
+### Web export
+
+- `export_web` — build a **pruned HTML5 deployment** for itch.io or any static host: `index.html`, `js/`, `css/`, `fonts/`, `icon/` and `data/*.json`, plus only the `img/`/`audio/`/`movies/` files something references (every string in the data files, string literals in the core engine scripts and plugins, plugin `@default`s; `img/system/` is always kept, and every `.ogg`/`.m4a` variant of a kept track). Effekseer effects are pruned the same way: an `effects/*.efkefc` is kept only if its name is a real effect reference (an animation's `effectName`, a Plugin Command argument in an event, or a plugin parameter/string — not other data strings, so a state or animation *named* `Poison` doesn't pull in `Poison.efkefc`), together with the textures/models it lists inside the file; if a kept effect can't be parsed, all of `effects/`' textures and models are kept. When nothing references an effect, no `effects/` folder is exported. Writes the folder to `outDir` and, with `zip` (default), `<outDir>.zip` with `index.html` at the archive root. Returns file/byte counts, kept/dropped asset counts and paths (effects included), the screen size from `System.advanced` (use it as the itch embed size), and warnings past itch's 1000-file / 200 MB-per-file limits. `prune: false` copies every asset — use it if a plugin builds asset names at runtime. Writes nothing inside the project; `outDir` can't be the project or sit inside a folder it copies, and an existing non-empty `outDir` is only replaced if it's a previous `export_web` output.
+
+### Headless render & playtest
+
+Boots the project's own `index.html` in a headless Chromium to check what validators can't: how a map looks and how it plays. Read-only — nothing is written into the project; PNGs go to `<os tmpdir>/rpgmaker-mz-mcp/renders/` unless you pass `out`. Pass `inline: true` to also get the PNG(s) back as image content in the tool response.
+
+- `render_map` — screenshot one map. By default it renders the **whole map** in one image (the canvas is resized to `width×height×48` px, the player is hidden, autorun/parallel events are frozen so a cutscene can't cover the map, and the map-name banner is off). Pass `x` + `y` to get a normal 816×624 game-screen view centred on that tile instead (the player is shown). `showEvents: false` draws bare tiles; `switches` turns switches on first to see a later story state; `runEvents: true` lets events run. Returns the PNG path and `problems`: console errors, page errors, and HTTP 404s (a missing image is drawn blank and listed there instead of stopping the engine on its load-error screen). Maps over 4800 px on a side need the `x`/`y` view.
+- `run_playtest` — run a script of steps in one browser session. Each step returns `ok` plus details, and the run stops at the first failing step:
+  - `load` `{mapId, x, y, direction?, party?, level?, gold?, switches?, variables?, selfSwitches?, items?, equip?, encounters?}` starts a new game at that spot with that state. Random encounters stay off unless `encounters: true`.
+  - `startEvent` `{eventId}` triggers a map event and lets it run until it shows text or goes idle. If the event transfers the player, the step waits for the new map and reports it as `transferredTo` `{mapId, x, y}`.
+  - `advanceText` `{maxMs?}` presses OK until the event goes idle. It stops early at an open choice list or a battle, and returns the message lines shown (with speaker names) and any open choices. Text shown during a battle comes back separately as `battleLines`, so it isn't mixed into the map event's dialogue.
+  - `choose` `{index}` picks a 0-based choice.
+  - `walk` `{direction, steps?}` walks tile by tile and reports the tile it ended on (`to`). If a tile refused entry, it reports both the player's tile (`stoppedAt`) and the tile that refused (`blockedTile`), which is how you find invisible walls. It stops early when a touch event fires; if that event is a door, it waits for the transfer to finish, so `to` and `transferredTo` are on the new map. `eventRunning`/`messageOpen` say the event is still going (follow up with `advanceText`).
+  - `press` `{button, times?}` and `wait` `{ms}`.
+  - `autoBattle` `{troopId?, canEscape?, canLose?, maxMs?}` fights a battle that has already started, or starts `troopId`, on auto AI, giving up after `maxMs` (default 60 s). It reports `victory`/`defeat`/`escaped`, the final HP of both sides, and the battle's message `lines` (troop battle events, victory text). Battles are fast-forwarded: the engine runs 20 frames for every frame it draws, so the fight plays out exactly as it would (same logic, same odds), only faster. A 10-turn boss fight takes about 5 s instead of 80 s. Pass `realtime: true` on the run to watch battles at normal speed, and raise `maxMs` to match. Only battles are sped up; the map, walking and dialogue run at normal speed.
+  - `screenshot` `{name?}` saves a PNG.
+  - `eval` `{script}` returns the value of a JS expression evaluated in the game page, such as `"$gameSwitches.value(3)"`.
+
+  Reported text (`lines`, `battleLines`, `choices`, speaker names) reads the way the message window shows it. `\V[n]`, `\N[n]`, `\P[n]` and `\G` are filled in from the game state at the time, and control codes such as `\C[n]`, `\I[n]`, `\{`, `\.` and `\|` are removed, so victory text comes back as `92 EXP received!`.
+
+  The response ends with `finalState` (scene, map, position, gold, party) and `problems`. `startEvent` and `autoBattle` refuse to start while an event or message is still running (for example, a map's autorun cutscene right after `load`) and tell you to `advanceText` first.
+
+**Requirements.** Both tools need `playwright-core`. It's an **optional dependency**, so a failed install never breaks the other tools; these two just return an error that tells you how to fix it. They also need a Chromium. No browser is downloaded: the server uses the newest `chrome-headless-shell` (or full Chromium) in the Playwright cache (`~/Library/Caches/ms-playwright`, `~/.cache/ms-playwright`, `%LOCALAPPDATA%\ms-playwright`, or `PLAYWRIGHT_BROWSERS_PATH`). If you don't have one, run `npx playwright install chromium-headless-shell`, or set `RPGMAKER_MCP_CHROMIUM` to any Chrome/Chromium executable. Each call takes about 1–2 s to boot, plus however long the script runs.
+
+**Long runs.** A `run_playtest` script with long cutscenes or `realtime` battles can take a minute or more, which is longer than many MCP clients wait by default (the TypeScript SDK gives up after 60 s with `-32001 Request timed out`). If the client sends a `progressToken`, the server sends a progress notification for each step and every 5 s during long ones, so a client using `resetTimeoutOnProgress` (or a longer timeout) keeps waiting. If your client can do neither, split the script into several shorter runs.
 
 ### System & vocabulary
 
@@ -263,14 +296,19 @@ Read-only builders that return editor-faithful `EventCommand` sequences; land th
 
 ### Batch creation
 
-- `batch_create` — create many records of one type (actors, items, weapons, armors, skills, enemies, states, classes) in a single call and a **single file write**; ids allocate sequentially, so a record can reference a sibling made earlier in the same batch
+- `batch_create` — create many records of one type (actors, items, weapons, armors, skills, enemies, states, classes) in a single call and a **single file write**; ids allocate sequentially, so a record can reference a sibling made earlier in the same batch; record fields the matching `create_*` tool doesn't accept come back as warnings instead of vanishing silently
+
+### Deleting records
+
+- `delete_record` — delete one database record (actor, class, skill, item, weapon, armor, enemy, troop, state, common event) by nulling its slot, so no other id shifts; reports every reference the deletion would leave dangling and **refuses** when there are any unless `force: true`
+- `reset_table` — clear a whole table except the ids in `keep` (e.g. `reset_table('skill', { keep: [1, 2] })` wipes the RTP skills but keeps Attack/Guard); kept records stay at their own id, trailing empty slots are trimmed, and it refuses on dangling references the same way
 
 ### Index & validation
 
 - `list_names` — cheap `{ id, name }` index for a table (actors, items, skills, maps, enemies, …)
 - `get_database` — full records from one table (actors, classes, items, weapons, armors, skills, enemies, troops, states, common_events), or a single record by `id`
 - `validate_event`, `validate_project` — event-command-shape validation (read-only)
-- `validate_references` — cross-file id-integrity audit (party→actor, transfer→map, effect→state/skill/common-event, drops→item, map-tree cycles, …)
+- `validate_references` — cross-file id-integrity audit (party→actor, transfer→map, effect→state/skill/common-event, drops→item, Change Items/Shop/Battle Processing→item/troop, encounters→troop, map-tree cycles, …)
 
 ### ID allocation
 
@@ -316,9 +354,25 @@ Drop a **`.rpgmaker-mcp.json`** in the project root to replace the estimate with
 
 Everything fails soft: no file, bad JSON, or a malformed `text` section leaves the built-in estimate in place, so a broken config is never worse than no config. The file is re-read when its mtime changes, and warnings then report real widths (`Show Text line is 650px but the message window fits 616px with a face shown`).
 
+**Auto-wrap.** Rather than fixing overflowing lines by hand, pass `wrap: true` to `build_show_text` or `create_npc` and write whole paragraphs: the text is word-wrapped to exactly the width the warning checks (the default estimate or your `.rpgmaker-mcp.json` metrics; escape codes like `\C[n]` never count or get split) and split into as many 4-line message boxes as needed, each with the same face/speaker. `wrap: true` (or `"soft"`) reflows every entry as one paragraph; `"hard"` keeps each entry and `\n` as a forced line break and only wraps lines that are too long.
+
 ## Reference linting
 
 `validate_references` performs a **cross-file id-integrity audit** — orthogonal to the command-shape check above. It walks the whole database and flags references that point at something that doesn't exist: a starting party member with no matching actor, a Transfer Player targeting a missing map, a skill effect that adds a non-existent state, an enemy dropping an unknown item, a cyclic map-tree parent, and more. Every check is warn-by-default and guarded against false positives on partially-loaded projects.
+
+## Deleting records and resetting tables
+
+A new MZ project ships RTP-flavoured database rows whose icons, animations and battlers point at RTP art. When you replace the art wholesale, the natural workflow is "clear the database, then author my own" — `reset_table` is that first step, and `delete_record` removes a single row.
+
+Database arrays are **index = id**, so both tools **null the slot rather than splice**: nothing is renumbered, and no surviving reference silently starts pointing at a different record. `reset_table` keeps each `keep` id at its own index and trims trailing empty slots (a table with nothing kept becomes `[null]`); new records from `create_*` / `batch_create` then allocate from the highest live id.
+
+Before writing, both tools work out which references the removal would leave dangling, by running the `validate_references` audit with and without the removed rows and keeping only the findings the removal introduces (references that were already broken aren't blamed on it). Removing skill 1 (Attack), skill 2 (Guard) or state 1 (Knockout) is always reported too, since the engine hard-codes those ids. If anything would dangle, the write is **refused** and nothing reaches disk — pass `force: true` to go ahead anyway, or `dryRun: true` to preview what disappears and what would break (a dry-run reports `requiresForce` instead of throwing). The scan covers what `validate_references` covers and says so in a `coverage` field: traits, actor starting equipment, event page conditions, Conditional Branch operands, and Script/plugin commands are not scanned.
+
+```
+reset_table({ type: 'skill', keep: [1, 2], dryRun: true })   // what goes, what breaks
+reset_table({ type: 'skill', keep: [1, 2], force: true })    // do it
+batch_create({ type: 'skill', records: [...] })              // author the replacements
+```
 
 ## ID allocation
 
@@ -365,7 +419,7 @@ A write tool that echoes the whole record back costs the one caller that always 
 | `update_map_event`, `set_event_page`, `add_event_command` | event identity + per-page `trigger` / `priorityType` / `moveType` / graphic / `listLength` |
 | `insert_event_commands` | `listLength` + `listCodes` — the resulting command **codes**, without the parameters |
 | `create_common_event`, `update_common_event` | identity, trigger wiring, `listLength` + `listCodes` |
-| `create_troop`, `update_troop` | identity, members, per-page `listLength` |
+| `create_troop`, `update_troop`, `add_troop_page` | identity, members, per-page `listLength` |
 
 The rule: **keep what you would assert on, drop what you would only re-read.** Command codes stay, because they are how you verify a splice landed where you asked (`is the 302 still after the two 101s`); command parameters go, because they are what you just wrote.
 
@@ -375,7 +429,7 @@ Measured on six calls from one real authoring session: **115,080 → 3,672 chara
 
 ## Custom-tileset catalog skill
 
-The default tilesets are cataloged out of the box. For a **custom** (non-RTP) tileset, a bundled Claude skill under `.claude/skills/tileset-catalog/` slices each sheet into labelled samples, has Claude vision-name them, and writes a versioned, project-scoped catalog to `data/tilecatalog/` — after which `find_tile`/`get_tile_catalog` resolve names for that sheet too. Those drafts also record what each tile *looks like*, so `find_tile` with `searchDescriptions: true` can match that text when a machine-drafted name is too terse to search by. The skill ships a dependency-free PNG codec and engine-exact tile geometry, so it runs anywhere Node does.
+The default tilesets are cataloged out of the box. A non-default sheet that ships an RPG Maker `.txt` name sidecar next to it (`img/tilesets/<Sheet>.txt`, one `Name|日本語名` line per tile — commercial DLC packs include these) is cataloged automatically too: its names come back with `source: 'sidecar'`, no catalog files needed. Precedence per tile: a human-verified (`manual`) `data/tilecatalog/` entry > the sidecar > a vision draft. For a **custom** (non-RTP) tileset with no sidecar, a bundled Claude skill under `.claude/skills/tileset-catalog/` slices each sheet into labelled samples, has Claude vision-name them, and writes a versioned, project-scoped catalog to `data/tilecatalog/` — after which `find_tile`/`get_tile_catalog` resolve names for that sheet too. Those drafts also record what each tile *looks like*, so `find_tile` with `searchDescriptions: true` can match that text when a machine-drafted name is too terse to search by. The skill ships a dependency-free PNG codec and engine-exact tile geometry, so it runs anywhere Node does.
 
 ## Example prompts
 
@@ -447,6 +501,8 @@ rpgmaker-mz-mcp/
 │   ├── events/               # Pure event-command builders (no I/O)
 │   ├── tiles/                # Tile subsystem: codec, autotile solver, paint core,
 │   │                         #   flag codec, and the semantic catalog
+│   ├── playtest/             # Headless engine driver: Chromium discovery, static server,
+│   │                         #   render_map + run_playtest (optional playwright-core)
 │   ├── validation/           # Known-command tables + event/move/plugin/reference validators
 │   └── utils/                # File I/O, the commit choke point, and RPG Maker MZ types
 ├── test/                     # Vitest suite

@@ -1,12 +1,12 @@
 {
   "name": "rpgmaker-mz-mcp",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "High-quality MCP server for RPG Maker MZ integration - manage game data, maps, events, and plugins",
   "mcpName": "io.github.Redseb/rpgmaker-mz-mcp",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "rpgmaker-mz-mcp": "./dist/index.js"
+    "rpgmaker-mz-mcp": "dist/index.js"
   },
   "files": [
     "dist",
@@ -66,5 +66,8 @@
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.63.0",
     "vitest": "^3.2.7"
+  },
+  "optionalDependencies": {
+    "playwright-core": "^1.63.0"
   }
 }

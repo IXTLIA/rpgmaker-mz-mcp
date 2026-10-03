@@ -28,6 +28,9 @@ import { projectAnalysisToolDefinitions } from './projectAnalysisTools.js';
 import { mapAnalysisToolDefinitions } from './mapAnalysisTools.js';
 import { mapGenerationToolDefinitions } from './mapGenerationTools.js';
 import { runtimeToolDefinitions } from './runtimeTools.js';
+import { exportToolDefinitions } from './exportTools.js';
+import { recordToolDefinitions } from './recordTools.js';
+import { playtestToolDefinitions } from './playtestTools.js';
 
 /**
  * Every tool the server exposes, gathered from the per-domain tool modules.
@@ -63,5 +66,8 @@ export const allToolDefinitions: ToolDefinition[] = [
   ...validationToolDefinitions,
   ...idToolDefinitions,
   ...batchToolDefinitions,
+  ...recordToolDefinitions,
   ...pluginScanToolDefinitions,
+  ...exportToolDefinitions,
+  ...playtestToolDefinitions,
 ];

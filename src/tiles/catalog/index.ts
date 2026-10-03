@@ -7,8 +7,10 @@
  * sheet's *slot* in a tileset, and searches by name.
  *
  * Pure (no I/O): callers pass a tileset's `tilesetNames` (from Tilesets.json).
- * A sheet whose filename isn't in the catalog is simply skipped (custom sheets
- * are the job of the 3f vision-bootstrap skill).
+ * A sheet whose filename isn't in the catalog is simply skipped unless the
+ * caller supplies an overlay for it — from a project catalog (the 3f
+ * vision-bootstrap skill) or a `.txt` name sidecar shipped next to the sheet
+ * (DLC packs do this; see {@link parseTileSidecar} / {@link mergeSheetOverlay}).
  */
 import { TILE_ID, makeAutotileId } from '../tileCodec.js';
 import { OVERWORLD_TILE_NAMES } from './overworld.js';
@@ -48,6 +50,24 @@ const FLAT_BASE: Record<string, number> = {
   E: TILE_ID.E,
 };
 
+/**
+ * How many local indices each slot role can address: A1 16 kinds, A2 32, A3 32,
+ * A4 48; A5 128 flat tiles; B–E 256. An index past this would resolve to a
+ * tile id belonging to the next sheet, so the resolver drops it (sidecars in
+ * particular can run long — trailing lines past the sheet's real capacity).
+ */
+const SLOT_CAPACITY: Record<SlotRole, number> = {
+  A1: 16,
+  A2: 32,
+  A3: 32,
+  A4: 48,
+  A5: 128,
+  B: 256,
+  C: 256,
+  D: 256,
+  E: 256,
+};
+
 function isAutotileSlot(role: SlotRole): boolean {
   return role === 'A1' || role === 'A2' || role === 'A3' || role === 'A4';
 }
@@ -81,10 +101,12 @@ export interface CatalogEntry {
   kind?: number;
   /**
    * Where the name came from: `builtin` = RPG Maker's own labels (authoritative);
-   * `project` = a project-scoped catalog written by the 3f vision-bootstrap skill
-   * (draft — a name a human may still be verifying).
+   * `sidecar` = the `img/tilesets/<Sheet>.txt` name file shipped next to a
+   * non-default sheet (DLC packs ship these — authoritative, same format the
+   * built-in catalogs were generated from); `project` = a project-scoped catalog
+   * in `data/tilecatalog/` (a vision draft, or a human-verified `manual` entry).
    */
-  source: 'builtin' | 'project';
+  source: CatalogSource;
   /**
    * True when the tile's representative sample is significantly transparent, so
    * it needs an opaque base tile on a lower layer (painting it on layer 0 alone
@@ -100,6 +122,9 @@ export interface CatalogEntry {
   manual?: boolean;
 }
 
+/** Where a catalog entry's name came from — see {@link CatalogEntry.source}. */
+export type CatalogSource = 'builtin' | 'sidecar' | 'project';
+
 /**
  * One tile in a project-scoped overlay. A bare `string` is shorthand for a
  * name-only tile (`{ name }`); the object form additionally carries the draft
@@ -111,12 +136,15 @@ export interface OverlayTile {
   description?: string;
   confidence?: string;
   manual?: boolean;
+  /** Where the tile came from; defaults to `project` for an overlay tile. */
+  source?: 'project' | 'sidecar';
 }
 
 /**
  * A project-scoped name overlay: sheet filename → tiles by local index. Produced
- * by loading the 3f skill's `data/tilecatalog/*.json` files (the loader lives in
- * the tools layer since it does I/O). An overlay entry for a sheet **replaces**
+ * by loading the 3f skill's `data/tilecatalog/*.json` files and any `.txt`
+ * sidecars for non-default sheets (the loader lives in the tools layer since it
+ * does I/O). An overlay entry for a sheet **replaces**
  * the built-in names for that sheet (a project's own labels win for its sheets).
  */
 export type CatalogOverlay = Record<string, (string | OverlayTile | undefined)[]>;
@@ -142,11 +170,13 @@ export function catalogForTileset(
     const overlayTiles = overlay?.[file];
     const tiles: (string | OverlayTile | undefined)[] | undefined = overlayTiles ?? CATALOG[file];
     if (!tiles) continue;
-    const source: 'builtin' | 'project' = overlayTiles ? 'project' : 'builtin';
+    const sheetSource: CatalogSource = overlayTiles ? 'project' : 'builtin';
     const autotile = isAutotileSlot(role);
+    const capacity = SLOT_CAPACITY[role];
     tiles.forEach((raw, localIndex) => {
-      const tile = typeof raw === 'string' ? { name: raw } : raw;
+      const tile: OverlayTile | undefined = typeof raw === 'string' ? { name: raw } : raw;
       if (!tile || !tile.name || tile.name === 'Transparent') return; // skip blank/transparent slots
+      if (localIndex >= capacity) return; // past the sheet — would alias the next sheet's ids
       const tileId = tileIdForSlotIndex(slot, localIndex);
       entries.push({
         name: tile.name,
@@ -155,7 +185,7 @@ export function catalogForTileset(
         tileId,
         autotile,
         ...(autotile ? { kind: AUTOTILE_BASE_KIND[role] + localIndex } : {}),
-        source,
+        source: tile.source ?? sheetSource,
         ...(tile.description ? { description: tile.description } : {}),
         ...(tile.confidence ? { confidence: tile.confidence } : {}),
         ...(tile.manual !== undefined ? { manual: tile.manual } : {}),
@@ -212,7 +242,91 @@ export function findTiles(
   return matches;
 }
 
+/** Whether a sheet filename has a compiled-in (RPG Maker default) catalog. */
+export function hasBuiltinCatalog(sheet: string): boolean {
+  return Object.prototype.hasOwnProperty.call(CATALOG, sheet);
+}
+
+/**
+ * Parse an RPG Maker tileset name sidecar (`img/tilesets/<Sheet>.txt`): one
+ * `EnglishName|日本語名` line per local index — line *i* names local index *i*.
+ * The default sheets ship these (the built-in catalogs were generated from
+ * them) and so do commercial DLC packs. Tolerates a UTF-8 BOM, CRLF line ends,
+ * a line with no `|`, and trailing blank lines (a blank line mid-file leaves a
+ * hole so later indices stay aligned). `Transparent` lines are kept as-is —
+ * the resolver skips them, but they still mark the slot as authoritatively
+ * named so a vision draft can't paper over it.
+ */
+export function parseTileSidecar(text: string): (string | undefined)[] {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n|\r/);
+  const names: (string | undefined)[] = lines.map((line) => {
+    const name = line.split('|')[0].trim();
+    return name || undefined;
+  });
+  while (names.length && names[names.length - 1] === undefined) names.pop();
+  return names;
+}
+
+/**
+ * Combine a sheet's sidecar names with its project catalog (`data/tilecatalog`)
+ * entries, per local index, by precedence: a human-verified project entry
+ * (`manual: true`) > the sidecar > a vision draft (non-manual project entry).
+ * A draft only fills indices the sidecar leaves unnamed. Each tile is tagged
+ * with its `source`.
+ */
+export function mergeSheetOverlay(
+  sidecar: (string | undefined)[] | undefined,
+  project: (string | OverlayTile | undefined)[] | undefined,
+): (OverlayTile | undefined)[] {
+  const merged: (OverlayTile | undefined)[] = [];
+  const len = Math.max(sidecar?.length ?? 0, project?.length ?? 0);
+  for (let i = 0; i < len; i++) {
+    const rawProject = project?.[i];
+    const proj: OverlayTile | undefined =
+      typeof rawProject === 'string' ? { name: rawProject } : rawProject;
+    const side = sidecar?.[i];
+    if (proj?.name && proj.manual === true) merged[i] = { ...proj, source: 'project' };
+    else if (side) merged[i] = { name: side, source: 'sidecar' };
+    else if (proj?.name) merged[i] = { ...proj, source: 'project' };
+  }
+  return merged;
+}
+
 /** Whether any sheet of a tileset is covered by the catalog (built-in or overlay). */
 export function hasCatalog(tilesetNames: string[], overlay?: CatalogOverlay): boolean {
   return tilesetNames.some((f) => f && (CATALOG[f] || overlay?.[f]));
+}
+
+/**
+ * Resolve a catalog tile name to exactly one tile id, for tools that accept a
+ * name wherever a tile id goes (e.g. `paint_blueprint`'s legend). An exact
+ * (case-insensitive) name match wins; failing that, a unique substring match
+ * (the {@link findTiles} rule). Throws when nothing matches or when the match is
+ * ambiguous (several distinct tile ids), listing the candidates so the caller
+ * can pick a longer name or pass the id.
+ */
+export function resolveTileName(
+  tilesetNames: string[],
+  name: string,
+  overlay?: CatalogOverlay,
+): number {
+  const q = name.toLowerCase();
+  const matches = findTiles(tilesetNames, name, overlay);
+  const exact = matches.filter((m) => m.name.toLowerCase() === q);
+  const pool = exact.length > 0 ? exact : matches;
+  const ids = [...new Set(pool.map((m) => m.tileId))];
+  if (ids.length === 1) return ids[0];
+  if (ids.length === 0) {
+    throw new Error(
+      `no catalog tile matches "${name}" in this tileset — check get_tile_catalog / find_tile, or pass a tile id`,
+    );
+  }
+  const shown = pool
+    .slice(0, 8)
+    .map((m) => `"${m.name}" (${m.sheet}, ${m.tileId})`)
+    .join(', ');
+  const more = pool.length > 8 ? `, … ${pool.length - 8} more` : '';
+  throw new Error(
+    `"${name}" is ambiguous — it matches ${pool.length} catalog tiles: ${shown}${more}. Use a more specific name or a tile id`,
+  );
 }
